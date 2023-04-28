@@ -8,7 +8,7 @@ namespace CsdnArticleExtract
 {
     internal enum BlogKind
     {
-        Hexo, Hugo, Jekyll,
+        Hexo, Hugo, Jekyll, Gridea,
         None = -1
     }
 }

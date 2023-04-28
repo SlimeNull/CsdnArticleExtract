@@ -28,13 +28,16 @@ namespace CsdnArticleExtract.Utilities
             PressAnyKeyToContinue(false);
         }
 
-        public static string? Input(string prompt)
+        public static string Input(string prompt)
         {
             Console.Write($"[#] {prompt} ");
-            return Console.ReadLine();
+            string? input = Console.ReadLine();
+            if (input == null)
+                Environment.Exit(0);
+            return input!;
         }
 
-        public static string? InputUtil(string prompt, Func<string, bool> validator)
+        public static string InputUtil(string prompt, Func<string, bool> validator)
         {
             Console.Write($"[#] {prompt} ");
 
@@ -44,12 +47,12 @@ namespace CsdnArticleExtract.Utilities
                     Console.ReadLine();
 
                 if (input == null)
-                    return null;
+                    Environment.Exit(0);
 
                 if (validator.Invoke(input))
                     return input;
 
-                Console.WriteLine("[X] Wrong input!");
+                Console.WriteLine("[X] Invalid input!");
             }
         }
 
@@ -61,13 +64,13 @@ namespace CsdnArticleExtract.Utilities
 
             while (true)
             {
-                Console.Write("[#] Please select an option: ");
+                Console.Write("[#] Please select an option:");
 
                 string? input = 
                     Console.ReadLine();
 
                 if (input == null)
-                    return -1;
+                    Environment.Exit(0);
 
                 if (int.TryParse(input, out int result))
                 {
@@ -75,6 +78,18 @@ namespace CsdnArticleExtract.Utilities
                         return result - 1;
                 }
             }
+        }
+
+        public static TEnum Select<TEnum>(string prompt) where TEnum : struct, Enum
+        {
+            TEnum[] values = 
+                Enum.GetValues<TEnum>();
+
+            string[] options =
+                values.Select(value => value.ToString())
+                .ToArray();
+
+            return values[Select(prompt, options)];
         }
 
         public static bool YesOrNo(string prompt, bool? defaultValue = true)

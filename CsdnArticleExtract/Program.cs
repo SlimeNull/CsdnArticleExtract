@@ -13,7 +13,7 @@ internal class Program
         AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
     }
 
-    private static string AddFrontMatterForMarkdown(string markdown, BlogKind blog, CsdnArticleInfo article, IEnumerable<string> categories, IEnumerable<string> tags)
+    private static string AddFrontMatterForMarkdown(string markdown, string? featureImagePath, bool isTop, BlogKind blog, CsdnArticleInfo article, IEnumerable<string> categories, IEnumerable<string> tags)
     {
         StringBuilder sb = new StringBuilder();
 
@@ -35,23 +35,67 @@ internal class Program
                 sb.AppendLine($"  - {tag}");
         }
 
-        if (categories.Count() > 0)
+        if (categories.Count() > 0 && blog != BlogKind.Gridea)
         {
             sb.AppendLine("categories");
             foreach (var category in categories)
                 sb.AppendLine($"  - {category}");
         }
 
-        if (blog != BlogKind.Hexo)
-            sb.AppendLine($"description: {article.Description}");
-        else
-            sb.AppendLine($"excerpt: {article.Description}");
+        if (blog != BlogKind.Gridea)
+        {
+            if (blog != BlogKind.Hexo)
+                sb.AppendLine($"description: {article.Description}");
+            else
+                sb.AppendLine($"excerpt: {article.Description}");
+        }
+
+        if (blog == BlogKind.Gridea)
+        {
+            sb.AppendLine($"published: true");
+            sb.AppendLine($"hideInList: false");
+            sb.AppendLine($"feature: {featureImagePath}");
+            sb.AppendLine($"isTop: {isTop}");
+        }
 
         sb.AppendLine("---");
         sb.AppendLine();
         sb.Append(markdown);
 
         return sb.ToString();
+    }
+
+    private static async Task<string> DownloadImageToLocal(IPage page, string imageLink, string localDirectory)
+    {
+        string imageFilename =
+            CsdnLinkUtils.GetFilenameFromImageLink(new Uri(imageLink));
+
+        string imageFullFilename = Path.Combine(
+            Path.Combine("output", localDirectory),
+            imageFilename);
+
+        var dirFullPath = Path.GetDirectoryName(imageFullFilename);
+        if (dirFullPath != null && !Directory.Exists(dirFullPath))
+            Directory.CreateDirectory(dirFullPath);
+
+        if (File.Exists(imageFullFilename))
+            return imageFilename;
+
+        var response =
+            await page.APIRequest.GetAsync(imageLink);
+
+        var imageBody =
+            await response.BodyAsync();
+
+
+        await File.WriteAllBytesAsync(imageFullFilename, imageBody);
+
+        return imageFilename;
+    }
+
+    private static string ResolveImageToLocal(string imageLink, string localDirectory)
+    {
+        return $"{localDirectory}/{CsdnLinkUtils.GetFilenameFromImageLink(new Uri(imageLink))}";
     }
 
     private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -208,17 +252,36 @@ internal class Program
 
         bool downImages =
             ConsoleUtils.YesOrNo("是否要将文章中的图片转存到本地呢?");
+        string downImagesPath =
+            ConsoleUtils.YesOrNo("是否要自定义图片文件夹输出路径呢?") ?
+            ConsoleUtils.InputUtil("输入它的路径", path =>
+            {
+                // 无效字符校验
+                if (path.Any(chr => FileSystemUtils.InvalidPathChars.Contains(chr)))
+                    return false;
+
+                return true;
+            }).TrimEndingPathSeperator() : "images";
         bool writeHexoFrontMatter =
             ConsoleUtils.YesOrNo("是否在文章首添加 Front-matter?");
         BlogKind frontMatterKind =
-            (BlogKind)ConsoleUtils.Select("要使用哪种博客的 Front-matter?", "Hexo", "Hugo", "Jekyll");
+            ConsoleUtils.Select<BlogKind>("要使用哪种博客的 Front-matter?");
 
 
-        Func<CsdnArticleInfo, string>? articleFileNameGetter =
-            ConsoleUtils.Select("你希望使用什么来命名文章?", "文章的 ID", "文章的时间") switch
+        Func<CsdnArticleInfo, Task<string>>? articleFileNameGetter =
+            ConsoleUtils.Select("你希望使用什么来命名文章?", "文章的 ID", "文章的时间", "文章标题的英文") switch
             {
-                0 => article => $"{article.ArticleId}",
-                1 => article => $"{article.PostTime}",
+                0 => article => Task.FromResult($"{article.ArticleId}"),
+                1 => article => Task.FromResult($"{article.PostTime}"),
+                2 => async (CsdnArticleInfo article) =>
+                {
+                    string? englishTitle = await YoudaoTranslate.TranslateToEnglish(article.Title);
+                    if (englishTitle==null)
+                        return $"{article.ArticleId}";
+
+                    return BlogUtils.GenerateBlogFilename(englishTitle);
+                }
+                ,
                 _ => null
             };
 
@@ -311,41 +374,34 @@ internal class Program
                     string imageLink =
                         match.Groups["link"].Value;
 
-                    string imageFilename =
-                        CsdnLinkUtils.GetFilenameFromImageLink(new Uri(imageLink));
-
-                    string imageFullFilename =
-                        $"output/assets/{imageFilename}";
-
-                    if (File.Exists(imageFullFilename))
-                        continue;
-
-                    var response =
-                        await page.APIRequest.GetAsync(imageLink);
-
-                    var imageBody =
-                        await response.BodyAsync();
-
-                    File.WriteAllBytes(imageFullFilename, imageBody);
+                    await DownloadImageToLocal(page, imageLink, downImagesPath);
                 }
 
                 ConsoleUtils.Log("修正图片引用");
 
                 markdown = markdownImageRegex.Replace(
                     markdown,
-                    match => $"![{match.Groups["alt"].Value}](assets/{CsdnLinkUtils.GetFilenameFromImageLink(new Uri(match.Groups["link"].Value))})");
+                    match => $"![{match.Groups["alt"].Value}]({ResolveImageToLocal(match.Groups["link"].Value, downImagesPath)})");
             }
 
             if (writeHexoFrontMatter)
             {
+                string? pic = article.PicList.FirstOrDefault();
+                string? localPic = null;
+                if (pic != null)
+                {
+                    await DownloadImageToLocal(page, pic, downImagesPath);
+                    localPic = ResolveImageToLocal(pic, downImagesPath);
+                }
+
                 markdown =
-                    AddFrontMatterForMarkdown(markdown, frontMatterKind, article, categories, tags);
+                    AddFrontMatterForMarkdown(markdown, localPic, article.Top, frontMatterKind, article, categories, tags);
             }
 
             ConsoleUtils.Log("保存文章");
 
             string filename =
-                articleFileNameGetter.Invoke(article);
+                await articleFileNameGetter.Invoke(article);
 
             File.WriteAllText($"output/{filename}.md", markdown);
 
