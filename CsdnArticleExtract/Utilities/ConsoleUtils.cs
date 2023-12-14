@@ -64,7 +64,7 @@ namespace CsdnArticleExtract.Utilities
 
             while (true)
             {
-                Console.Write("[#] Please select an option:");
+                Console.Write("[#] Please select an option: ");
 
                 string? input = 
                     Console.ReadLine();

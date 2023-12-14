@@ -23,23 +23,37 @@ namespace LibCsdnArticleExtract
             string encodedUsername =
                 Uri.EscapeDataString(username);
 
-            HttpRequestMessage request = new HttpRequestMessage(
-                HttpMethod.Get,
-                $"/community/home-api/v1/get-business-list?page=0&size=114514&businessType=blog&orderby=&noMore=false&year=&month=&username={encodedUsername}");
+            List<CsdnArticleInfo> allArticles = new List<CsdnArticleInfo>();
 
-            HttpResponseMessage response =
-                await HttpClient.SendAsync(request);
+            int page = 1;
+            while (true)
+            {
+                HttpRequestMessage request = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"/community/home-api/v1/get-business-list?page={page}&size=100&businessType=blog&orderby=&noMore=false&year=&month=&username={encodedUsername}");
 
-            CsdnResponse<CsdnGetBusinessListData>? data =
-                await response.Content.ReadFromJsonAsync<CsdnResponse<CsdnGetBusinessListData>>();
+                HttpResponseMessage response =
+                    await HttpClient.SendAsync(request);
 
-            if (data == null)
-                return null;
+                CsdnResponse<CsdnGetBusinessListData>? data =
+                    await response.Content.ReadFromJsonAsync<CsdnResponse<CsdnGetBusinessListData>>();
 
-            if (data.Data == null)
-                return null;
+                if (data == null)
+                    return null;
 
-            return data.Data.List;
+                if (data.Data == null)
+                    return null;
+
+                foreach (var artical in data.Data.List)
+                    allArticles.Add(artical);
+
+                if (allArticles.Count == data.Data.Total)
+                    break;
+
+                page++;
+            }
+
+            return allArticles;
         }
     }
 }

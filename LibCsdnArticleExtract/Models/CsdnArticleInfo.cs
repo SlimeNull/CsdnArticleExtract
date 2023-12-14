@@ -2,7 +2,7 @@
 {
     public class CsdnArticleInfo
     {
-        public int ArticleId { get; set; }
+        public long ArticleId { get; set; }
         public string Title { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string Url { get; set; } = string.Empty;
