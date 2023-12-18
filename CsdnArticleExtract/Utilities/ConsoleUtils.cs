@@ -37,7 +37,7 @@ namespace CsdnArticleExtract.Utilities
             return input!;
         }
 
-        public static string InputUtil(string prompt, Func<string, bool> validator)
+        public static string InputUntil(string prompt, Func<string, bool> validator)
         {
             Console.Write($"[#] {prompt} ");
 

@@ -55,7 +55,7 @@ internal class Program
         if (browserPath == null)
         {
             if (ConsoleUtils.YesOrNo("你是否有浏览器现有的可执行文件? (如果没有, 程序会下载一个浏览器, 这会消耗一些时间)"))
-                browserPath = ConsoleUtils.InputUtil("输入它的路径", path => File.Exists(path));
+                browserPath = ConsoleUtils.InputUntil("输入它的路径", path => File.Exists(path));
             browserTypeStr = BrowserUtils.GetBrowserTypeFromExecutable(browserPath);
         }
 
@@ -169,7 +169,7 @@ internal class Program
             linkBaseAddress = ConsoleUtils.Input("输入修正后链接的基地址: ");
         string downImagesPath =
             ConsoleUtils.YesOrNo("是否要自定义图片文件夹输出路径呢? 默认是 output/assets") ?
-            ConsoleUtils.InputUtil("输入它的路径", path =>
+            ConsoleUtils.InputUntil("输入它的路径", path =>
             {
                 // 无效字符校验
                 if (path.Any(chr => FileSystemUtils.InvalidPathChars.Contains(chr)))
@@ -223,7 +223,7 @@ internal class Program
         if (ConsoleUtils.YesOrNo("是否要在爬取一篇文章之后进行延时呢?"))
         {
             string? delayStr =
-                ConsoleUtils.InputUtil("输入延时时间(ms):", input => int.TryParse(input, out _));
+                ConsoleUtils.InputUntil("输入延时时间(ms):", input => int.TryParse(input, out _));
 
             if (delayStr == null)
                 return;

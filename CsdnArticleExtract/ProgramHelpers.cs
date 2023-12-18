@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Text.RegularExpressions;
 using CsdnArticleExtract;
 using CsdnArticleExtract.Models;
 using CsdnArticleExtract.Utilities;
@@ -37,13 +38,87 @@ internal static class ProgramHelpers
         return imageFilename;
     }
 
-    public static string GetFrontMatterForMarkdown(string markdown, string? featureImagePath, bool isTop, BlogKind blog, CsdnArticleInfo article, IEnumerable<string> categories, IEnumerable<string> tags)
+    static Dictionary<string, string> codingLanguages = new()
+    {
+        { "C#", "CSharp" },
+        { "c#", "CSharp" },
+
+        { "C++", "CPP" },
+        { "c++", "CPP" },
+
+        { ".NET", "DotNet" },
+        { ".net", "dotnet" }
+    };
+
+    public static string ReplaceCodingLanguages(string text)
+    {
+        foreach (var lang in codingLanguages)
+        {
+            text = Regex.Replace(text, Regex.Escape(lang.Key), match =>
+            {
+                int index = match.Index;
+                int nextCharIndex = match.Index + match.Length;
+
+                if (index != 0 && char.IsLetter(text[index - 1]))
+                    return match.Value;
+                if (nextCharIndex < text.Length && char.IsLetter(text[nextCharIndex]))
+                    return match.Value;
+
+                return lang.Value;
+            });
+        }
+
+        return text;
+    }
+
+    public static string ReplaceSpecialChars(string text)
+    {
+        StringBuilder sb = new StringBuilder(text);
+        sb.Replace('\\', ',');
+        sb.Replace('/', ',');
+        sb.Replace(':', ' ');
+        sb.Replace('*', ' ');
+        sb.Replace('?', ',');
+        sb.Replace('"', ' ');
+        sb.Replace('\'', ' ');
+        sb.Replace('<', '(');
+        sb.Replace('>', ')');
+        sb.Replace('|', ' ');
+
+        return sb.ToString();
+    }
+
+    public static string GetSlugFromTitle(string title)
+    {
+        string slug = title;
+        slug = ReplaceCodingLanguages(slug);
+        slug = ReplaceSpecialChars(slug);
+        slug = slug.Replace(", ", ",");
+
+        return slug;
+    }
+
+    public static string GetFrontMatterForMarkdown(
+        string markdown,
+        string? featureImagePath,
+        bool isTop,
+        BlogKind blog,
+        CsdnArticleInfo article,
+        IEnumerable<string> categories,
+        IEnumerable<string> tags)
     {
         StringBuilder sb = new StringBuilder();
 
 
         sb.AppendLine("---");
         sb.AppendLine($"title: '{article.Title}'");
+
+        if (blog == BlogKind.Hugo)
+        {
+            string slug = GetSlugFromTitle(article.Title);
+
+            sb.AppendLine($"slug: {slug}");
+        }
 
         DateTime date = DateTime.Parse(article.PostTime);
         sb.AppendLine(blog switch
